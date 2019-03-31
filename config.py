@@ -14,3 +14,19 @@ class Config:
     SQLALCHEMY_DATABASE_URI = 'mysql://root:mysql@localhost/info'
         # 动态追踪修改设置，如未设置只会提示警告
     SQLALCHEMY_TRACK_MODIFICATIONS = True
+        #设置debug模式为空
+    DEBUG = None
+
+#定义开发模式下的DEBUG
+class DevelopmentConfig(Config):
+    DEBUG = True
+
+# 定义生产情况下的debug
+class ProductionConfig(Config):
+    DEBUG = False
+
+#定义字典映射不同配置下的类
+config_dict = {
+    'development': DevelopmentConfig,
+    'production': ProductionConfig
+}
