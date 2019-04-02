@@ -23,8 +23,10 @@ class Config:
     SECRET_KEY = '0FkqKfUFJcBQbfveExNUdbuAILmAxm6WXyWSm7uCsuzL48sRArlIR+k6b8GI'
         #设置链接数据库名称,
     SESSION_TYPE = 'redis'
+    Config_REDIS_HOST = '127.0.0.1'
+    Config_REDIS_PORT = 6379
         #实例strictredis方法，并传入链接数据库的ip默认端口为6379
-    SESSION_REDIS = StrictRedis(host='127.0.0.1')
+    SESSION_REDIS = StrictRedis(host=Config_REDIS_HOST,port=Config_REDIS_PORT)
         #设置签证
     SESSION_USE_SIGNER = True
         #设置数据库的过期时间值

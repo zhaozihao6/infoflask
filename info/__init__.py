@@ -3,9 +3,13 @@ from flask import Flask
 #导入Session类
 from flask_session import Session
 #导入配置字典
-from config import config_dict
+from config import config_dict,Config
 #导入flask_sqlalchemy下的SQLAlchemy类
 from flask_sqlalchemy import SQLAlchemy
+#导入redis,并实例对象
+from redis import StrictRedis
+#实例StrictRedis对象
+redis_store = StrictRedis(host=Config.Config_REDIS_HOST,port=Config.Config_REDIS_PORT)
 #创建create_app类,设置形参
 # 实力sqlalchemy对象
 db = SQLAlchemy()
@@ -22,4 +26,8 @@ def create_app(schema_name):
     #注册蓝图
     app.register_blueprint(news_blue)
     # 这个方法最终是要获取app的，需要返回app
+    #导入蓝图对象并注册蓝图
+    from info.modules.passport import passport_blue
+    # 注册蓝图
+    app.register_blueprint(passport_blue)
     return app
