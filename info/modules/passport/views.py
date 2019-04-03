@@ -1,13 +1,21 @@
+#导入常量
 from info.constants import IMAGE_CODE_REDIS_EXPIRES
+#导入蓝图对象
 from . import passport_blue
 #导入captcha扩展,实现图片验证码
 from info.utils.captcha.captcha import captcha
+# 导入flask内置的request请求上下文对象，current_app应用上下文
 from flask import request,jsonify,current_app,make_response
+#导入自定义错误信息
 from info.utils.response_code import RET
+#导入redis实例对象
 from info import redis_store
+#导入python中的正则模块和随机数模块
 import re,random
+#导入常量
 from info import constants
-from info.libs.yuntongxun.sms import ccp
+#导入第三方云通讯sms对象
+from info.libs.yuntongxun.sms import CCP
 
 @passport_blue.route('/image_code')
 
@@ -50,7 +58,7 @@ def generate_image_code():
 
 #发送短信验证码
 
-@passport_blue.route('/sms_code',methods = ['POST'])
+@passport_blue.route('/sms_code', methods=['POST'])
 def send_sms_code():
     # 发送短信验证码流程
     """
@@ -72,9 +80,9 @@ def send_sms_code():
     :return:
     """
     # 1、获取参数，mobile(用户的手机号)，image_code(用户输入的图片验证码), image_code_id(UUID)
-    mobile = request.args.get("mobile")
-    image_code = request.args.get('image_code')
-    image_code_id = request.args.get("image_code_id")
+    mobile = request.json.get("mobile")
+    image_code = request.json.get('image_code')
+    image_code_id = request.json.get("image_code_id")
     # 2、检查参数的完整性
     # 方法1：if not mobile and image_code and image_code_id:
     #判断方法2：
@@ -87,11 +95,14 @@ def send_sms_code():
     try:
         real_image_code = redis_store.get('Image_Code_'+image_code_id)
     except Exception as e:
+        #利用应用上下文对象,来记录错误日志信息
         current_app.logger.error(e)
-        return jsonify(erron = RET.DBERR,errmsg = '获取数据失败')
+        return jsonify(erron=RET.DBERR,errmsg='获取数据失败')
+    #判断验证码是否为空
     if not real_image_code:
         return jsonify(errno=RET.NODATA,errmsg='图片验证码已过期')
     # 删除redis中存储的图片验证码，因为图片验证码只能get一次，只能比较一次,留着也没用
+    #用户只能输入一次验证码，如果输入错误，从新生成验证码输入
     try:
         redis_store.delete('ImageCode_' + image_code_id)
     except Exception as e:
@@ -99,21 +110,25 @@ def send_sms_code():
     #比较图片验证码的数据是否一直,lower（）函数可以把字符串转化成小写
     if real_image_code.lower() != image_code.lower():
         return jsonify(erron=RET.DATAERR,errmsg='图片验证码不一致')
-    #生成短信验证码
+    #生成短信验证码，'%06d' % 因为从0开始，有可能会出现5位，'%06d' % 这个可以在前多加一位
     sms_code = '%06d' % random.randint(0, 999999)
-    # 存储在redis中，key可以拼接手机号
+    # 存储在redis中，key可以拼接手机号来实现key唯一
     try:
         redis_store.setex('SMSCode_'+mobile,constants.SMS_CODE_REDIS_EXPIRES,sms_code)
     except Exception as e:
         current_app.logger.error(e)
         return jsonify(errno=RET.DBERR,errmsg='保存数据失败')
-    #使用云通讯发送短信验证码
+    #使用云通讯发送短信验证码，send_template_sms(接收人手机号,[内容（下面代码有验证码/过期时间）],1)
     try:
-        result = ccp.send_template_sms(mobile,[sms_code,constants.SMS_CODE_REDIS_EXPIRES/60],1)
+        ccp = CCP()
+        result = ccp.send_template_sms(mobile,[sms_code,
+                                            constants.SMS_CODE_REDIS_EXPIRES/60],1)
+
     except Exception as e:
         current_app.logger.error(e)
         return jsonify(errno=RET.THIRDERR,errmsg='发送短信异常')
-    #判断短信是否发送成功
+    #判断短信是否发送成功，云通讯在发送时会接收一个响应信息0为发送成功-1为失败，后端需要根据响应来判断是
+    #否发送成功
     if result == 0:
         return jsonify(errno=RET.OK, errmsg='发送成功')
     else:

@@ -4,7 +4,7 @@ $(function(){
 	$('.login_btn').click(function(){
         $('.login_form_con').show();
 	})
-	
+
 	// 点击关闭按钮关闭登录框或者注册框
 	$('.shutoff').click(function(){
 		$(this).closest('form').hide();
@@ -72,7 +72,7 @@ $(function(){
 	var sHash = window.location.hash;
 	if(sHash!=''){
 		var sId = sHash.substring(1);
-		var oNow = $('.'+sId);		
+		var oNow = $('.'+sId);
 		var iNowIndex = oNow.index();
 		$('.option_list li').eq(iNowIndex).addClass('active').siblings().removeClass('active');
 		oNow.show().siblings().hide();
@@ -147,19 +147,16 @@ $(function(){
 
     })
 })
-//定义变量的意义保存UUID，如果定义在function里面的话执行后会销毁
+
+// 定义全局变量，
 var imageCodeId = ""
 
 // 生成一个图片验证码的编号，并设置页面中图片验证码img标签的src属性
 function generateImageCode() {
-    //调研generateUUID函数来生成UUID，并保存在imageCodeId
     imageCodeId = generateUUID();
-    // 因为index.Html文件中是image标签,会默认请求图片路径,那我们就可以直接修改src属性修改为url
-    // 设置图片url的请求路径
-    var url = '/image_code?image_code_id='+ imageCodeId
-    //通过类标签get_pic_code.attr方法来替换属性。
+    //http://127.0.0.1:5000/image_code?image_code_id=UUID
+    var url = '/image_code?image_code_id=' + imageCodeId
     $('.get_pic_code').attr('src',url);
-
 }
 
 // 发送短信验证码
@@ -181,7 +178,44 @@ function sendSMSCode() {
         return;
     }
 
-    // TODO 发送短信验证码
+    // 发送短信验证码
+    var params = {
+        'mobile':mobile,
+        'image_code':imageCode,
+        'image_code_id':imageCodeId
+    };
+    // 发送post请求
+    $.ajax({
+        url:'/sms_code',
+        type:'post',
+        data:JSON.stringify(params),
+        contentType:'application/json',
+        success:function(resp){
+            if (resp.errno == '0'){
+                // 设置定时器
+                var num = 60;
+                var t = setInterval(function(){
+                    if (num == 1){
+                        clearInterval(t);
+                        $('.get_code').html('点击获取验证码');
+                        $('.get_code').attr('onclick','sendSMSCode();')
+
+                    }else{
+                        num -= 1;
+                        $('.get_code').html(num + '秒')
+                    }
+                },1000)
+            }else{
+                alert(resp.errmsg);
+                // $('#register-sms-code-err').html(resp.errmsg);
+                // $('#register-sms-code-err').show();
+
+            }
+        }
+
+
+    })
+
 }
 
 // 调用该函数模拟点击左侧按钮
