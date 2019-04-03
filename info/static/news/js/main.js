@@ -147,11 +147,18 @@ $(function(){
 
     })
 })
-
+//定义变量的意义保存UUID，如果定义在function里面的话执行后会销毁
 var imageCodeId = ""
 
-// TODO 生成一个图片验证码的编号，并设置页面中图片验证码img标签的src属性
+// 生成一个图片验证码的编号，并设置页面中图片验证码img标签的src属性
 function generateImageCode() {
+    //调研generateUUID函数来生成UUID，并保存在imageCodeId
+    imageCodeId = generateUUID();
+    // 因为index.Html文件中是image标签,会默认请求图片路径,那我们就可以直接修改src属性修改为url
+    // 设置图片url的请求路径
+    var url = '/image_code?image_code_id='+ imageCodeId
+    //通过类标签get_pic_code.attr方法来替换属性。
+    $('.get_pic_code').attr('src',url);
 
 }
 

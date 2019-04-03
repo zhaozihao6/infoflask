@@ -9,7 +9,7 @@ from flask_sqlalchemy import SQLAlchemy
 #导入redis,并实例对象
 from redis import StrictRedis
 #实例StrictRedis对象
-redis_store = StrictRedis(host=Config.Config_REDIS_HOST,port=Config.Config_REDIS_PORT)
+redis_store = StrictRedis(host=Config.Config_REDIS_HOST,port=Config.Config_REDIS_PORT,decode_responses=True)
 #创建create_app类,设置形参
 # 实力sqlalchemy对象
 db = SQLAlchemy()
