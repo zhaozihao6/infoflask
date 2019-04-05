@@ -16,6 +16,7 @@ import re,random
 from info import constants
 #导入第三方云通讯sms对象
 from info.libs.yuntongxun.sms import CCP
+from info.models import User
 
 @passport_blue.route('/image_code')
 
@@ -110,6 +111,17 @@ def send_sms_code():
     #比较图片验证码的数据是否一直,lower（）函数可以把字符串转化成小写
     if real_image_code.lower() != image_code.lower():
         return jsonify(erron=RET.DATAERR,errmsg='图片验证码不一致')
+
+    #判断手机号是否注册：
+    #通过查询musql数据库查询手机号是否存在
+    try:
+        user = User.query.filter_by(mobile=mobile).first()
+    except Exception as e:
+        current_app.logger.error(e)
+        return jsonify(erron=RET.DBERR,errmsg='查询用户数据失败')
+    if user is not None:
+        return jsonify(erron=RET.DBERR,errmsg='查询用户数据失败')
+
     #生成短信验证码，'%06d' % 因为从0开始，有可能会出现5位，'%06d' % 这个可以在前多加一位
     sms_code = '%06d' % random.randint(0, 999999)
     # 存储在redis中，key可以拼接手机号来实现key唯一
@@ -117,7 +129,7 @@ def send_sms_code():
         redis_store.setex('SMSCode_'+mobile,constants.SMS_CODE_REDIS_EXPIRES,sms_code)
     except Exception as e:
         current_app.logger.error(e)
-        return jsonify(errno=RET.DBERR,errmsg='保存数据失败')
+        return jsonify(errno=RET.DATAEXIST,errmsg='手机号已经注册')
     #使用云通讯发送短信验证码，send_template_sms(接收人手机号,[内容（下面代码有验证码/过期时间）],1)
     try:
         ccp = CCP()
