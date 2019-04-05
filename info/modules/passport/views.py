@@ -5,7 +5,7 @@ from . import passport_blue
 #导入captcha扩展,实现图片验证码
 from info.utils.captcha.captcha import captcha
 # 导入flask内置的request请求上下文对象，current_app应用上下文
-from flask import request,jsonify,current_app,make_response
+from flask import request,jsonify,current_app,make_response,session
 #导入自定义错误信息
 from info.utils.response_code import RET
 #导入redis实例对象
@@ -17,6 +17,7 @@ from info import constants
 #导入第三方云通讯sms对象
 from info.libs.yuntongxun.sms import CCP
 from info.models import User
+from info import db
 
 @passport_blue.route('/image_code')
 
@@ -33,7 +34,7 @@ def generate_image_code():
     """
     #获取uuid
     image_code_id = request.args.get("image_code_id")
-    print(image_code_id)
+
     #判断uuid是否传入,没传直接return
     if not image_code_id:
         # 前后端交互使用jsonfy,并自定义返回错误类型
@@ -108,19 +109,21 @@ def send_sms_code():
         redis_store.delete('ImageCode_' + image_code_id)
     except Exception as e:
         current_app.logger.error(e)
-    #比较图片验证码的数据是否一直,lower（）函数可以把字符串转化成小写
+    #比较图片验证码的数据是否一直,lower（）函数可以把大写字母转化成小写
     if real_image_code.lower() != image_code.lower():
         return jsonify(erron=RET.DATAERR,errmsg='图片验证码不一致')
 
-    #判断手机号是否注册：
-    #通过查询musql数据库查询手机号是否存在
+    #判断手机号是否注册(不允许一个手机号注册多次)：
+    #通过查询mysql数据库查询手机号是否存在
     try:
+        #查询数据库语句
         user = User.query.filter_by(mobile=mobile).first()
     except Exception as e:
         current_app.logger.error(e)
         return jsonify(erron=RET.DBERR,errmsg='查询用户数据失败')
+    #判断数据是否真实存在
     if user is not None:
-        return jsonify(erron=RET.DBERR,errmsg='查询用户数据失败')
+        return jsonify(erron=RET.DATAEXIST,errmsg='手机号码已被注册')
 
     #生成短信验证码，'%06d' % 因为从0开始，有可能会出现5位，'%06d' % 这个可以在前多加一位
     sms_code = '%06d' % random.randint(0, 999999)
@@ -145,3 +148,99 @@ def send_sms_code():
         return jsonify(errno=RET.OK, errmsg='发送成功')
     else:
         return jsonify(errno=RET.THIRDERR, errmsg='发送失败')
+
+
+
+@passport_blue.route('/register',methods=['POST'])
+def register():
+    '''
+    用户注册
+    获取参数---检查参数---业务处理---返回结果
+    1、获取前端ajax发送的post请求的三个参数，mobile，sms_code,password
+    2、检查参数的完整性
+    3、检查手机号的格式
+    用户是否注册？
+    4、尝试从redis数据库中获取真实的短信验证码
+    5、判断获取结果是否过期
+    6、比较短信验证码是否正确，因为短信验证码可以比较多次，图片验证码只能比较一次
+    7、删除redis数据库中存储的短信验证码
+    用户是否注册？
+    8、构造模型类对象,准备保存用户信息
+    user = User()
+    user.password = password
+    9、提交数据到mysql数据库中，如果发生异常，需要进行回滚
+    10、缓存用户信息，使用session对象到redis数据库中；
+    11、返回结果
+
+    :return:
+    '''
+    # 1、获取前端ajax发送的post请求的三个参数，mobile，sms_code, password
+    mobile = request.json.get('mobile')
+    sms_code = request.json.get('sms_code')
+    password = request.json.get('password')
+    # 2、检查参数的完整性
+    if not all([mobile, sms_code, password]):
+        return jsonify(erron=RET.PARAMERR,errmsg='参数不完整')
+    # 3、检查手机号的格式
+    if not re.match(r'1[3456789]\d{9}$',mobile):
+        return jsonify(erron=RET.PARAMERR,errmsg='手机号格式错误')
+    try:
+        user = User.query.filter_by(mobile=mobile).first()
+    except Exception as e:
+       current_app.logger.error(e)
+       return jsonify(erron=RET.DBERR, errmsg='查询手机号失败')
+    if user is not None:
+        return jsonify(erron=RET.DATAEXIST, errmsg='手机号码已被注册')
+    # 4、尝试从redis数据库中获取真实的短信验证码
+    try:
+        real_sms_code=redis_store.get('SMSCode_'+mobile)
+    except Exception as e:
+        current_app.logger.error(e)
+        return jsonify(erron=RET.DBERR, errmsg='获取数据失败')
+    # 5、判断获取结果是否过期
+    if real_sms_code is None:
+        return jsonify(erron=RET.NODATA, errmsg='短信验证码过期')
+    # 6、比较短信验证码是否正确，因为短信验证码可以比较多次，图片验证码只能比较一次
+    if real_sms_code != str(sms_code):
+        return jsonify(errno=RET.DATAERR,errmsg='短信验证码不一致')
+    # 7、删除redis数据库中存储的短信验证码
+    try:
+        redis_store.delete('SMSCode_'+mobile)
+    except Exception as e:
+        current_app.logger.error(e)
+    # 8、用户是否注册？
+        # 判断手机号是否注册(不允许一个手机号注册多次)：
+        # 通过查询mysql数据库查询手机号是否存在
+    try:
+        # 查询数据库语句
+        user = User.query.filter_by(mobile=mobile).first()
+    except Exception as e:
+        current_app.logger.error(e)
+        return jsonify(erron=RET.DBERR, errmsg='查询用户数据失败')
+        # 判断数据是否真实存在
+    if user is not None:
+        return jsonify(erron=RET.DATAEXIST, errmsg='手机号码已被注册')
+    # 9、构造模型类对象, 准备保存用户信息
+    user = User()
+    user.nick_name = mobile
+    user.password = password
+    user.mobile = mobile
+    # 9、提交数据到mysql数据库中，如果发生异常，需要进行回滚
+    try:
+        db.session.add(user)
+        db.session.commit()
+    except Exception as e:
+        current_app.logger.error(e)
+        # 保存数据如果失败，进行回滚
+        db.session.rollback()
+        # 缓存用户信息
+    session['user_id'] = user.id
+    session['nick_name'] = user.nick_name
+    session['mobile'] = user.mobile
+    # 返回结果
+    return jsonify(errno=RET.OK, errmsg='OK')
+
+
+
+
+
