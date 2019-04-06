@@ -1,7 +1,8 @@
 #导入flask和session对象,模板对象和应用上下文对象
-from flask import session,render_template, current_app
+from flask import session,render_template, current_app,jsonify
 from . import news_blue
-from info.models import User
+from info.models import User,Category
+from info.utils.response_code import RET
 
 
 @news_blue.route('/')
@@ -21,12 +22,32 @@ def index():
         user = User.query.filter_by(id=user_id).first()#根据缓存信息来查看用户信息
     except Exception as e:
         current_app.logger.error(e)
-        # 定义字典，存储数据 if user_id:user.to_dict() else None
+
+    #查询数据库获取分类信息
+    try:
+        #数据库存了6个数据对象的引用[<Category 1>, <Category 2>, <Category 3>, <Category 4>, <Category 5>, <Category 6>]
+        categoryies = Category.query.all()
+    except Exception as e:
+        current_app.logger.error(e)
+        return jsonify(erron=RET.DBERR,errmsg='查询新闻分类数据失败')
+    #判断新闻分类是否有数据
+    if not categoryies:
+        return jsonify(erron=RET.NODATA,errmsg='无新闻分类数据')
+    #定义列表来存储循环出来的字典值[{'name': '最新', 'id': 1}, {'name': '股市', 'id': 2}, {'name': '债市', 'id': 3},
+    #  {'name': '商品', 'id': 4}, {'name': '外汇', 'id': 5}, {'name': '公司', 'id': 6}]
+    category_list = []
+    #遍历对象的引用
+    for category in categoryies:
+        print(category)
+        category_list.append(category.to_dict())
+    print(category_list)
+    # 定义字典，存储数据 if user_id:user.to_dict() else None
     data = {
-        'user_info': user.to_dict() if user else None
+        'user_info': user.to_dict() if user else None,
+        'category_list': category_list
     }
 
-    return render_template('news/index.html',data=data)
+    return render_template('news/index.html', data=data)
 
 #logo图标的加载
 # 浏览器会默认加载，且需要启动manage文件时清除浏览器缓存并，重新启动浏览器。

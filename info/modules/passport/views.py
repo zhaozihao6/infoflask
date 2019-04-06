@@ -305,3 +305,13 @@ def login():
     session['mobile'] = user.mobile
     return jsonify(errno=RET.OK,errmsg='OK')
 
+
+#用户退出
+@passport_blue.route('/logout')
+def logout():
+    #在flask前后端不分离的情况下,用户退出就是清除缓存.
+    session.pop('user_id', None) #None值表示,如果需要清楚的数据不存在的话
+    session.pop('nick_name', None) #会默认为None值不会报错
+    session.pop('mobile', None)
+    return jsonify(erron=RET.OK,errmsg='OK')
+
