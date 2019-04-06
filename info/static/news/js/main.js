@@ -93,7 +93,7 @@ $(function(){
 		$(this).find('a')[0].click()
 	})
 
-    // TODO 登录表单提交
+    // 登录表单提交
     $(".login_form_con").submit(function (e) {
         e.preventDefault()
         var mobile = $(".login_form #mobile").val()
@@ -110,10 +110,33 @@ $(function(){
         }
 
         // 发起登录请求
+        var params = {
+            'mobile':mobile,
+            'password':password
+        }
+        // ajax请求
+        $.ajax({
+            url:'/login',
+            type:'post',
+            data:JSON.stringify(params),
+            contentType:'application/json',
+            // 把cookie中的csrf_token放入ajax请求头中；
+            headers:{
+                'X-CSRFToken':getCookie('csrf_token')
+            },
+            success:function(data){
+                if (data.errno == '0'){
+                    location.reload()
+                }else{
+                    $('#login-password-err').html(data.errmsg);
+                    $('#login-password-err').show();
+                }
+            }
+        })
     })
 
 
-    // TODO 注册按钮点击
+    // 注册按钮点击
     $(".register_form_con").submit(function (e) {
         // 阻止默认提交操作
         e.preventDefault()
@@ -144,6 +167,33 @@ $(function(){
         }
 
         // 发起注册请求
+        var params = {
+            'mobile':mobile,
+            'sms_code':smscode,
+            'password':password
+        }
+        // 发送ajax请求,XMLHTTPRequest
+        // $.get和$.post和$.ajax之间的区别？？
+        $.ajax({
+            url:'/register',
+            type:'post',
+            data:JSON.stringify(params),
+            contentType:'application/json',
+            headers:{
+                'X-CSRFToken':getCookie('csrf_token')
+            },
+            success:function(resp){
+                if (resp.errno == '0'){
+                    // 表示刷新当前页面
+                    location.reload()
+                }else{
+                    $('#register-password-err').html(resp.errmsg);
+                    $('#register-password-err').show();
+                }
+
+            }
+
+        })
 
     })
 })
@@ -190,6 +240,9 @@ function sendSMSCode() {
         type:'post',
         data:JSON.stringify(params),
         contentType:'application/json',
+        headers:{
+                'X-CSRFToken':getCookie('csrf_token')
+        },
         success:function(resp){
             if (resp.errno == '0'){
                 // 设置定时器
@@ -251,4 +304,12 @@ function generateUUID() {
         return (c=='x' ? r : (r&0x3|0x8)).toString(16);
     });
     return uuid;
+}
+
+
+// 退出登录
+function logout(){
+    $.get('/logout',function(resp){
+        location.reload()
+    })
 }

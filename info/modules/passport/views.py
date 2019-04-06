@@ -1,3 +1,5 @@
+#导入时间模块
+from datetime import datetime
 #导入常量
 from info.constants import IMAGE_CODE_REDIS_EXPIRES
 #导入蓝图对象
@@ -16,7 +18,9 @@ import re,random
 from info import constants
 #导入第三方云通讯sms对象
 from info.libs.yuntongxun.sms import CCP
+#导入模型类,使用模型类对象进行查库操作
 from info.models import User
+#导入数据库实例对象
 from info import db
 
 @passport_blue.route('/image_code')
@@ -184,6 +188,7 @@ def register():
     # 3、检查手机号的格式
     if not re.match(r'1[3456789]\d{9}$',mobile):
         return jsonify(erron=RET.PARAMERR,errmsg='手机号格式错误')
+    #查询数据库,判断手机号是否注册过
     try:
         user = User.query.filter_by(mobile=mobile).first()
     except Exception as e:
@@ -242,5 +247,61 @@ def register():
 
 
 
+#实现用户登陆
+@passport_blue.route('/login',methods=['POST'])
 
+def login():
+
+    """
+      用户登录
+      1、获取参数，post请求，json数据，mobile，password
+      2、检查参数的完整性
+      3、检查手机号的格式
+      4、根据手机号查询mysql，确认用户已注册
+      5、判断查询结果
+      6、判断密码是否正确
+      7、保存用户登录时间，当前时间
+      8、提交数据到mysql数据库
+      9、缓存用户信息，注意：登录可以执行多次，用户有可能修改昵称，也有可能不改。
+      session['nick_name'] = user.nick_name
+      10、返回结果
+
+      :return:
+      """
+
+
+    # 1、获取参数，post请求，json数据，mobile，password
+    mobile = request.json.get('mobile')
+    password = request.json.get('password')
+    # 2、检查参数的完整性
+    if not all([mobile,password]):
+        return jsonify(erron=RET.PARAMERR,erromsg='参数信息不完整')
+    # 3、检查手机号的格式
+    if not re.match(r'1[3456789]\d{9}$', mobile):
+        return jsonify(erron=RET.PARAMERR,errmsg='手机号格式错误')
+    # 4、根据手机号查询mysql，确认用户已注册
+    try:
+        user = User.query.filter_by(mobile=mobile).first()
+    except Exception as e:
+        current_app.logger(e)
+        return jsonify(erron=RET.DBERR, errmsg='查询用户数据失败')
+    # 4、根据手机号查询mysql，确认用户已注册
+    if user is None or not user.check_password(password):
+        return jsonify(errno=RET.DATAERR, errmsg='用户名或密码错误')
+    # 保存用户登录时间，当前时间
+    user.last_login = datetime.now()
+    #提交数据到数据库
+    try:
+        db.session.add(user)
+        db.session.commit()
+    except Exception as e:
+        current_app.logger.error(e)
+        #保存数据失败进行回滚操作
+        db.session.rollback()
+        return jsonify(errno=RET.DBERR, errmsg='保存数据失败')
+    #session缓存
+    session['user_id'] = user.id
+    session['nick_name'] = user.nick_name
+    session['mobile'] = user.mobile
+    return jsonify(errno=RET.OK,errmsg='OK')
 
