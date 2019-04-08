@@ -1,8 +1,9 @@
 #导入flask和session对象,模板对象和应用上下文对象
-from flask import session,render_template, current_app,jsonify
+from flask import session, render_template, current_app, jsonify
 from . import news_blue
-from info.models import User,Category
+from info.models import User, Category, News
 from info.utils.response_code import RET
+from info import constants
 
 
 @news_blue.route('/')
@@ -38,13 +39,31 @@ def index():
     category_list = []
     #遍历对象的引用
     for category in categoryies:
-        print(category)
+
         category_list.append(category.to_dict())
-    print(category_list)
+
+
+
+    #实现新闻排序
+    try:
+        news_list = News.query.order_by(News.clicks.desc()).limit(constants.CLICK_RANK_MAX_NEWS)
+    except Exception as e:
+        current_app.logger.error(e)
+        return jsonify(erron=RET.DBERR, errmsg='查询数据库失败')
+    #判断查询数据是否为空
+    if not news_list:
+        return jsonify(erron=RET.DATAERR, errmsg='无新闻点击排行数据')
+    news_click_list = []
+    #循环遍历news_list对象
+    for news in news_list:
+        news_click_list.append(news.to_dict())
+
+
     # 定义字典，存储数据 if user_id:user.to_dict() else None
     data = {
         'user_info': user.to_dict() if user else None,
-        'category_list': category_list
+        'category_list': category_list,
+        'news_click_list':news_click_list
     }
 
     return render_template('news/index.html', data=data)
@@ -58,4 +77,4 @@ def favicon():
     #使用应用上下文对象返回logo图标文件
     return current_app.send_static_file('news/favicon.ico')
 
-
+#新闻分类下的新闻数据加载实现
